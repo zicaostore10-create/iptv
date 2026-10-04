@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 <style>
   *{box-sizing:border-box;margin:0}
   body{background:radial-gradient(circle at 80% 0,#2a0508,#0a0204 60%);color:#fff;
@@ -26,7 +27,12 @@
   .cont p{opacity:.6;font-size:14px}
   footer{margin-top:20px;display:flex;justify-content:space-between;font-size:14px}
   footer b{color:#e94545}
-  input{display:none}
+  #arquivo{display:none}
+  #tela{display:none;position:fixed;inset:0;background:#0a0204;padding:20px;overflow:auto}
+  #tela video{width:100%;max-height:45vh;background:#000;border-radius:16px;margin-top:12px}
+  #tela input[type=text]{display:block;width:100%;padding:12px;margin:12px 0;border-radius:12px;border:1px solid #2a2a2a;background:#161616;color:#fff}
+  .item{padding:12px;border-bottom:1px solid #222;cursor:pointer}
+  .item:hover{background:#161616}
   @media(max-width:800px){.grid{grid-template-columns:1fr 1fr;grid-template-rows:auto}
     .vivo,.cont{grid-row:auto}}
 </style>
@@ -58,7 +64,16 @@
   <div id="hora"></div>
 </footer>
 
+<div id="tela">
+  <button onclick="tela.style.display='none'">← Voltar</button>
+  <video id="player" controls autoplay></video>
+  <input type="text" id="busca" placeholder="Buscar...">
+  <div id="canais"></div>
+</div>
+
 <script>
+  let todos=[];
+
   function lerM3U(texto){
     const canais=[];let atual=null;
     for(const l of texto.split("\n").map(x=>x.trim())){
@@ -70,11 +85,14 @@
     return canais;
   }
 
+  const tipo=(x,t)=>x.url.includes(t);
+
   document.getElementById("arquivo").onchange=async e=>{
     const f=e.target.files[0];
     const c=lerM3U(await f.text());
-    const filmes=c.filter(x=>x.url.includes("/movie/"));
-    const series=c.filter(x=>x.url.includes("/series/"));
+    todos=c;
+    const filmes=c.filter(x=>tipo(x,"/movie/"));
+    const series=c.filter(x=>tipo(x,"/series/"));
     const vivo=c.length-filmes.length-series.length;
     nVivo.textContent=vivo+" Canais";
     nFilmes.textContent=filmes.length+" Filmes";
@@ -82,6 +100,29 @@
     nPl.textContent="1 Playlist";
     nomeLista.textContent=rodape.textContent=f.name;
   };
+
+  function abrir(lista){
+    tela.style.display="block";
+    const mostrar=t=>canais.innerHTML=lista
+      .filter(x=>x.nome.toLowerCase().includes(t.toLowerCase()))
+      .slice(0,300)
+      .map(x=>`<div class="item" data-i="${lista.indexOf(x)}">${x.nome}</div>`).join("");
+    mostrar("");
+    busca.value="";
+    busca.oninput=()=>mostrar(busca.value);
+    canais.onclick=e=>{const x=lista[e.target.dataset.i]; if(x) tocar(x.url)};
+  }
+
+  function tocar(url){
+    if(window.hls) hls.destroy();
+    if(url.includes(".m3u8")&&Hls.isSupported()){
+      window.hls=new Hls(); hls.loadSource(url); hls.attachMedia(player);
+    } else player.src=url;
+  }
+
+  bVivo.onclick=()=>abrir(todos.filter(x=>!tipo(x,"/movie/")&&!tipo(x,"/series/")));
+  bFilmes.onclick=()=>abrir(todos.filter(x=>tipo(x,"/movie/")));
+  bSeries.onclick=()=>abrir(todos.filter(x=>tipo(x,"/series/")));
 
   setInterval(()=>hora.textContent=new Date().toLocaleString("pt-BR",
     {hour:"2-digit",minute:"2-digit",weekday:"short",day:"numeric",month:"short"}),1000);
